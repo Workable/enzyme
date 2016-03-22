@@ -50,7 +50,7 @@
   "author": "Leland Richardson <leland.richardson@airbnb.com>",
   "license": "MIT",
   "dependencies": {
-    "cheerio": "^0.20.0",
+    "cheerio": "github:workable/cheerio",
     "is-subset": "^0.1.1",
     "lodash": "^4.0.0",
     "object.assign": "^4.0.3",
