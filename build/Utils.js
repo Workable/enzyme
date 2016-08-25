@@ -1,5 +1,3 @@
-'use strict';
-
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -17,6 +15,7 @@ exports.nodeHasType = nodeHasType;
 exports.childrenEqual = childrenEqual;
 exports.nodeEqual = nodeEqual;
 exports.containsChildrenSubArray = containsChildrenSubArray;
+exports.isReactElementAlike = isReactElementAlike;
 exports.propFromEvent = propFromEvent;
 exports.withSetStateAllowed = withSetStateAllowed;
 exports.splitSelector = splitSelector;
@@ -26,16 +25,25 @@ exports.selectorType = selectorType;
 exports.AND = AND;
 exports.coercePropValue = coercePropValue;
 exports.mapNativeEventNames = mapNativeEventNames;
+exports.displayNameOfNode = displayNameOfNode;
 
 var _isEqual = require('lodash/isEqual');
 
 var _isEqual2 = _interopRequireDefault(_isEqual);
 
+var _react = require('react');
+
+var _react2 = _interopRequireDefault(_react);
+
+var _objectIs = require('object-is');
+
+var _objectIs2 = _interopRequireDefault(_objectIs);
+
 var _reactCompat = require('./react-compat');
 
 var _version = require('./version');
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
 function internalInstanceKey(node) {
   return Object.keys(Object(node)).filter(function (key) {
@@ -85,21 +93,23 @@ function nodeHasType(node, type) {
   return node.type.name === type || node.type.displayName === type;
 }
 
-function childrenEqual(a, b) {
+function childrenEqual(a, b, lenComp) {
   if (a === b) return true;
   if (!Array.isArray(a) && !Array.isArray(b)) {
-    return nodeEqual(a, b);
+    return nodeEqual(a, b, lenComp);
   }
   if (!a && !b) return true;
   if (a.length !== b.length) return false;
   if (a.length === 0 && b.length === 0) return true;
   for (var i = 0; i < a.length; i++) {
-    if (!nodeEqual(a[i], b[i])) return false;
+    if (!nodeEqual(a[i], b[i], lenComp)) return false;
   }
   return true;
 }
 
 function nodeEqual(a, b) {
+  var lenComp = arguments.length <= 2 || arguments[2] === undefined ? _objectIs2['default'] : arguments[2];
+
   if (a === b) return true;
   if (!a || !b) return false;
   if (a.type !== b.type) return false;
@@ -108,22 +118,31 @@ function nodeEqual(a, b) {
   var right = propsOfNode(b);
   for (var i = 0; i < leftKeys.length; i++) {
     var prop = leftKeys[i];
-    if (!(prop in right)) return false;
+    // we will check children later
     if (prop === 'children') {
-      if (!childrenEqual((0, _reactCompat.childrenToArray)(left.children), (0, _reactCompat.childrenToArray)(right.children))) {
-        return false;
-      }
+      // continue;
+    } else if (!(prop in right)) {
+      return false;
     } else if (right[prop] === left[prop]) {
       // continue;
     } else if (_typeof(right[prop]) === _typeof(left[prop]) && _typeof(left[prop]) === 'object') {
-        if (!(0, _isEqual2['default'])(left[prop], right[prop])) return false;
-      } else {
-        return false;
-      }
+      if (!(0, _isEqual2['default'])(left[prop], right[prop])) return false;
+    } else {
+      return false;
+    }
   }
 
-  if (typeof a !== 'string' && typeof a !== 'number') {
-    return leftKeys.length === Object.keys(right).length;
+  var leftHasChildren = 'children' in left;
+  var rightHasChildren = 'children' in right;
+  if (leftHasChildren || rightHasChildren) {
+    if (!childrenEqual((0, _reactCompat.childrenToArray)(left.children), (0, _reactCompat.childrenToArray)(right.children), lenComp)) {
+      return false;
+    }
+  }
+
+  if (!isTextualNode(a)) {
+    var rightKeys = Object.keys(right);
+    return lenComp(leftKeys.length - leftHasChildren, rightKeys.length - rightHasChildren);
   }
 
   return false;
@@ -150,6 +169,14 @@ function childrenOfNode(node) {
   return (0, _reactCompat.childrenToArray)(children);
 }
 
+function isTextualNode(node) {
+  return typeof node === 'string' || typeof node === 'number';
+}
+
+function isReactElementAlike(arg) {
+  return _react2['default'].isValidElement(arg) || isTextualNode(arg) || Array.isArray(arg);
+}
+
 // 'click' => 'onClick'
 // 'mouseEnter' => 'onMouseEnter'
 function propFromEvent(event) {
@@ -173,7 +200,7 @@ function withSetStateAllowed(fn) {
 }
 
 function splitSelector(selector) {
-  return selector.split(/(?=\.|\[.*\])/);
+  return selector.split(/(?=\.|\[.*\])|(?=#|\[#.*\])/);
 }
 
 function isSimpleSelector(selector) {
@@ -185,7 +212,7 @@ function selectorError(selector) {
   return new TypeError('Enzyme received a complex CSS selector (\'' + String(selector) + '\') that it does not currently support');
 }
 
-var isCompoundSelector = exports.isCompoundSelector = /([a-z]\.[a-z]|[a-z]\[.*\])/i;
+var isCompoundSelector = exports.isCompoundSelector = /([a-z]\.[a-z]|[a-z]\[.*\]|[a-z]#[a-z])/i;
 
 var isPropSelector = /^\[.*\]$/;
 
@@ -254,7 +281,8 @@ function mapNativeEventNames(event) {
     keyup: 'keyUp',
     keypress: 'keyPress',
     contextmenu: 'contextMenu',
-    doubleclick: 'doubleClick',
+    dblclick: 'doubleClick',
+    doubleclick: 'doubleClick', // kept for legacy. TODO: remove with next major.
     dragend: 'dragEnd',
     dragenter: 'dragEnter',
     dragexist: 'dragExit',
@@ -289,4 +317,13 @@ function mapNativeEventNames(event) {
   }
 
   return nativeToReactEventMap[event] || event;
+}
+
+function displayNameOfNode(node) {
+  var type = node.type;
+
+
+  if (!type) return null;
+
+  return type.displayName || type.name || type;
 }

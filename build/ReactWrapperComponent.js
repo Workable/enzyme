@@ -1,5 +1,3 @@
-'use strict';
-
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -90,7 +88,7 @@ function createWrapperComponent(node) {
         var component = this._reactInternalInstance._renderedComponent;
         var inst = component.getPublicInstance();
         if (inst === null) {
-          return component;
+          return component._instance;
         }
         return inst;
       }

@@ -1,5 +1,3 @@
-'use strict';
-
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -14,14 +12,6 @@ exports.debugNodes = debugNodes;
 exports.debugInst = debugInst;
 exports.debugInsts = debugInsts;
 
-var _ShallowTraversal = require('./ShallowTraversal');
-
-var _MountedTraversal = require('./MountedTraversal');
-
-var _reactCompat = require('./react-compat');
-
-var _Utils = require('./Utils');
-
 var _without = require('lodash/without');
 
 var _without2 = _interopRequireDefault(_without);
@@ -34,13 +24,21 @@ var _compact = require('lodash/compact');
 
 var _compact2 = _interopRequireDefault(_compact);
 
-var _version = require('./version');
-
 var _object = require('object.values');
 
 var _object2 = _interopRequireDefault(_object);
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+var _ShallowTraversal = require('./ShallowTraversal');
+
+var _MountedTraversal = require('./MountedTraversal');
+
+var _reactCompat = require('./react-compat');
+
+var _Utils = require('./Utils');
+
+var _version = require('./version');
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
 function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
@@ -111,6 +109,10 @@ function debugInst(inst) {
 
   if (typeof inst === 'string' || typeof inst === 'number') return (0, _escape2['default'])(inst);
   if (!inst) return '';
+
+  if (inst._stringText) {
+    return inst._stringText;
+  }
 
   if (!inst.getPublicInstance) {
     var internal = (0, _Utils.internalInstance)(inst);

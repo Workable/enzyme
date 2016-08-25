@@ -1,5 +1,3 @@
-'use strict';
-
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -26,6 +24,10 @@ var _compact = require('lodash/compact');
 
 var _compact2 = _interopRequireDefault(_compact);
 
+var _ComplexSelector = require('./ComplexSelector');
+
+var _ComplexSelector2 = _interopRequireDefault(_ComplexSelector);
+
 var _ReactWrapperComponent = require('./ReactWrapperComponent');
 
 var _ReactWrapperComponent2 = _interopRequireDefault(_ReactWrapperComponent);
@@ -38,7 +40,9 @@ var _Utils = require('./Utils');
 
 var _Debug = require('./Debug');
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+var _version = require('./version');
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -48,11 +52,14 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
  *
  * @param {ReactWrapper} wrapper
  * @param {Function} predicate
+ * @param {Function} filter
  * @returns {ReactWrapper}
  */
 function findWhereUnwrapped(wrapper, predicate) {
+  var filter = arguments.length <= 2 || arguments[2] === undefined ? _MountedTraversal.treeFilter : arguments[2];
+
   return wrapper.flatMap(function (n) {
-    return (0, _MountedTraversal.treeFilter)(n.node, predicate);
+    return filter(n.node, predicate);
   });
 }
 
@@ -106,6 +113,7 @@ var ReactWrapper = function () {
       this.length = this.nodes.length;
     }
     this.options = options;
+    this.complexSelector = new _ComplexSelector2['default'](_MountedTraversal.buildInstPredicate, findWhereUnwrapped, _MountedTraversal.childrenOfInst);
   }
 
   /**
@@ -178,7 +186,7 @@ var ReactWrapper = function () {
           // TODO(lmr): this requirement may not be necessary for the ReactWrapper
           throw new Error('ReactWrapper::update() can only be called on the root');
         }
-        this.single(function () {
+        this.single('update', function () {
           _this.component.forceUpdate();
         });
         return this;
@@ -203,7 +211,7 @@ var ReactWrapper = function () {
         if (this.root !== this) {
           throw new Error('ReactWrapper::unmount() can only be called on the root');
         }
-        this.single(function () {
+        this.single('unmount', function () {
           _this2.component.setState({ mount: false });
         });
         return this;
@@ -228,7 +236,7 @@ var ReactWrapper = function () {
         if (this.root !== this) {
           throw new Error('ReactWrapper::mount() can only be called on the root');
         }
-        this.single(function () {
+        this.single('mount', function () {
           _this3.component.setState({ mount: true });
         });
         return this;
@@ -320,6 +328,39 @@ var ReactWrapper = function () {
     }()
 
     /**
+     * Whether or not a given react element matches the current render tree.
+     * It will determine if the wrapper root node "looks like" the expected
+     * element by checking if all props of the expected element are present
+     * on the wrapper root node and equals to each other.
+     *
+     * Example:
+     * ```
+     * // MyComponent outputs <div class="foo">Hello</div>
+     * const wrapper = mount(<MyComponent />);
+     * expect(wrapper.matchesElement(<div>Hello</div>)).to.equal(true);
+     * ```
+     *
+     * @param {ReactElement} node
+     * @returns {Boolean}
+     */
+
+  }, {
+    key: 'matchesElement',
+    value: function () {
+      function matchesElement(node) {
+        var _this4 = this;
+
+        return this.single('matchesElement', function () {
+          return (0, _MountedTraversal.instEqual)(node, _this4.node, function (a, b) {
+            return a <= b;
+          });
+        });
+      }
+
+      return matchesElement;
+    }()
+
+    /**
      * Whether or not a given react element exists in the mount render tree.
      *
      * Example:
@@ -348,6 +389,123 @@ var ReactWrapper = function () {
     }()
 
     /**
+     * Whether or not a given react element exists in the current render tree.
+     * It will determine if one of the wrappers element "looks like" the expected
+     * element by checking if all props of the expected element are present
+     * on the wrappers element and equals to each other.
+     *
+     * Example:
+     * ```
+     * // MyComponent outputs <div><div class="foo">Hello</div></div>
+     * const wrapper = mount(<MyComponent />);
+     * expect(wrapper.containsMatchingElement(<div>Hello</div>)).to.equal(true);
+     * ```
+     *
+     * @param {ReactElement} node
+     * @returns {Boolean}
+     */
+
+  }, {
+    key: 'containsMatchingElement',
+    value: function () {
+      function containsMatchingElement(node) {
+        var predicate = function () {
+          function predicate(other) {
+            return (0, _MountedTraversal.instEqual)(node, other, function (a, b) {
+              return a <= b;
+            });
+          }
+
+          return predicate;
+        }();
+        return findWhereUnwrapped(this, predicate).length > 0;
+      }
+
+      return containsMatchingElement;
+    }()
+
+    /**
+     * Whether or not all the given react elements exists in the current render tree.
+     * It will determine if one of the wrappers element "looks like" the expected
+     * element by checking if all props of the expected element are present
+     * on the wrappers element and equals to each other.
+     *
+     * Example:
+     * ```
+     * const wrapper = mount(<MyComponent />);
+     * expect(wrapper.containsAllMatchingElements([
+     *   <div>Hello</div>,
+     *   <div>Goodbye</div>,
+     * ])).to.equal(true);
+     * ```
+     *
+     * @param {Array<ReactElement>} nodes
+     * @returns {Boolean}
+     */
+
+  }, {
+    key: 'containsAllMatchingElements',
+    value: function () {
+      function containsAllMatchingElements(nodes) {
+        var invertedEquals = function () {
+          function invertedEquals(n1, n2) {
+            return (0, _MountedTraversal.instEqual)(n2, n1, function (a, b) {
+              return a <= b;
+            });
+          }
+
+          return invertedEquals;
+        }();
+        var predicate = function () {
+          function predicate(other) {
+            return (0, _Utils.containsChildrenSubArray)(invertedEquals, other, nodes);
+          }
+
+          return predicate;
+        }();
+        return findWhereUnwrapped(this, predicate).length > 0;
+      }
+
+      return containsAllMatchingElements;
+    }()
+
+    /**
+     * Whether or not one of the given react elements exists in the current render tree.
+     * It will determine if one of the wrappers element "looks like" the expected
+     * element by checking if all props of the expected element are present
+     * on the wrappers element and equals to each other.
+     *
+     * Example:
+     * ```
+     * const wrapper = mount(<MyComponent />);
+     * expect(wrapper.containsAnyMatchingElements([
+     *   <div>Hello</div>,
+     *   <div>Goodbye</div>,
+     * ])).to.equal(true);
+     * ```
+     *
+     * @param {Array<ReactElement>} nodes
+     * @returns {Boolean}
+     */
+
+  }, {
+    key: 'containsAnyMatchingElements',
+    value: function () {
+      function containsAnyMatchingElements(nodes) {
+        if (!Array.isArray(nodes)) return false;
+        if (nodes.length <= 0) return false;
+        for (var i = 0; i < nodes.length; i++) {
+          if (this.containsMatchingElement(nodes[i])) {
+            return true;
+          }
+        }
+        return false;
+      }
+
+      return containsAnyMatchingElements;
+    }()
+
+    /**
      * Finds every node in the render tree of the current wrapper that matches the provided selector.
      *
      * @param {String|Function} selector
@@ -358,8 +516,7 @@ var ReactWrapper = function () {
     key: 'find',
     value: function () {
       function find(selector) {
-        var predicate = (0, _MountedTraversal.buildInstPredicate)(selector);
-        return findWhereUnwrapped(this, predicate);
+        return this.complexSelector.find(selector, this);
       }
 
       return find;
@@ -379,12 +536,37 @@ var ReactWrapper = function () {
     value: function () {
       function is(selector) {
         var predicate = (0, _MountedTraversal.buildInstPredicate)(selector);
-        return this.single(function (n) {
+        return this.single('is', function (n) {
           return predicate(n);
         });
       }
 
       return is;
+    }()
+
+    /**
+     * Returns true if the component rendered nothing, i.e., null or false.
+     *
+     * @returns {boolean}
+     */
+
+  }, {
+    key: 'isEmptyRender',
+    value: function () {
+      function isEmptyRender() {
+        return this.single('isEmptyRender', function (n) {
+          // Stateful components and stateless function components have different internal structures,
+          // so we need to find the correct internal instance, and validate the rendered node type
+          // equals 2, which is the `ReactNodeTypes.EMPTY` value.
+          if (_version.REACT15) {
+            return (0, _MountedTraversal.internalInstanceOrComponent)(n)._renderedNodeType === 2;
+          }
+
+          return (0, _reactCompat.findDOMNode)(n) === null;
+        });
+      }
+
+      return isEmptyRender;
     }()
 
     /**
@@ -399,10 +581,10 @@ var ReactWrapper = function () {
     key: 'filterWhere',
     value: function () {
       function filterWhere(predicate) {
-        var _this4 = this;
+        var _this5 = this;
 
         return filterWhereUnwrapped(this, function (n) {
-          return predicate(_this4.wrap(n));
+          return predicate(_this5.wrap(n));
         });
       }
 
@@ -463,7 +645,7 @@ var ReactWrapper = function () {
     key: 'text',
     value: function () {
       function text() {
-        return this.single(function (n) {
+        return this.single('text', function (n) {
           return (0, _reactCompat.findDOMNode)(n).textContent;
         });
       }
@@ -483,7 +665,7 @@ var ReactWrapper = function () {
     key: 'html',
     value: function () {
       function html() {
-        return this.single(function (n) {
+        return this.single('html', function (n) {
           var node = (0, _reactCompat.findDOMNode)(n);
           return node === null ? null : node.outerHTML.replace(/\sdata-(reactid|reactroot)+="([^"]*)+"/g, '');
         });
@@ -516,7 +698,7 @@ var ReactWrapper = function () {
      * testing events should be met with some skepticism.
      *
      * @param {String} event
-     * @param {Array} args
+     * @param {Object} mock (optional)
      * @returns {ReactWrapper}
      */
 
@@ -524,18 +706,16 @@ var ReactWrapper = function () {
     key: 'simulate',
     value: function () {
       function simulate(event) {
-        for (var _len = arguments.length, args = Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-          args[_key - 1] = arguments[_key];
-        }
+        var mock = arguments.length <= 1 || arguments[1] === undefined ? {} : arguments[1];
 
-        this.single(function (n) {
+        this.single('simulate', function (n) {
           var mappedEvent = (0, _Utils.mapNativeEventNames)(event);
           var eventFn = _reactCompat.Simulate[mappedEvent];
           if (!eventFn) {
             throw new TypeError('ReactWrapper::simulate() event \'' + String(event) + '\' does not exist');
           }
 
-          eventFn.apply(undefined, [(0, _reactCompat.findDOMNode)(n)].concat(args));
+          eventFn((0, _reactCompat.findDOMNode)(n), mock);
         });
         return this;
       }
@@ -555,7 +735,7 @@ var ReactWrapper = function () {
     key: 'props',
     value: function () {
       function props() {
-        return this.single(_Utils.propsOfNode);
+        return this.single('props', _Utils.propsOfNode);
       }
 
       return props;
@@ -575,13 +755,13 @@ var ReactWrapper = function () {
     key: 'state',
     value: function () {
       function state(name) {
-        var _this5 = this;
+        var _this6 = this;
 
         if (this.root !== this) {
           throw new Error('ReactWrapper::state() can only be called on the root');
         }
-        var _state = this.single(function () {
-          return _this5.instance().state;
+        var _state = this.single('state', function () {
+          return _this6.instance().state;
         });
         if (name !== undefined) {
           return _state[name];
@@ -606,13 +786,13 @@ var ReactWrapper = function () {
     key: 'context',
     value: function () {
       function context(name) {
-        var _this6 = this;
+        var _this7 = this;
 
         if (this.root !== this) {
           throw new Error('ReactWrapper::context() can only be called on the root');
         }
-        var _context = this.single(function () {
-          return _this6.instance().context;
+        var _context = this.single('context', function () {
+          return _this7.instance().context;
         });
         if (name !== undefined) {
           return _context[name];
@@ -654,10 +834,10 @@ var ReactWrapper = function () {
     key: 'childAt',
     value: function () {
       function childAt(index) {
-        var _this7 = this;
+        var _this8 = this;
 
-        return this.single(function () {
-          return _this7.children().at(index);
+        return this.single('childAt', function () {
+          return _this8.children().at(index);
         });
       }
 
@@ -678,10 +858,10 @@ var ReactWrapper = function () {
     key: 'parents',
     value: function () {
       function parents(selector) {
-        var _this8 = this;
+        var _this9 = this;
 
-        var allParents = this.wrap(this.single(function (n) {
-          return (0, _MountedTraversal.parentsOfInst)(n, _this8.root.node);
+        var allParents = this.wrap(this.single('parents', function (n) {
+          return (0, _MountedTraversal.parentsOfInst)(n, _this9.root.node);
         }));
         return selector ? allParents.filter(selector) : allParents;
       }
@@ -741,7 +921,25 @@ var ReactWrapper = function () {
     }()
 
     /**
-     * Returns the type of the root ndoe of this wrapper. If it's a composite component, this will be
+     * Returns the key assigned to the current node.
+     *
+     * @returns {String}
+     */
+
+  }, {
+    key: 'key',
+    value: function () {
+      function key() {
+        return this.single('key', function (n) {
+          return (0, _MountedTraversal.getNode)(n).key;
+        });
+      }
+
+      return key;
+    }()
+
+    /**
+     * Returns the type of the root node of this wrapper. If it's a composite component, this will be
      * the component constructor. If it's native DOM node, it will be a string.
      *
      * @returns {String|Function}
@@ -751,12 +949,32 @@ var ReactWrapper = function () {
     key: 'type',
     value: function () {
       function type() {
-        return this.single(function (n) {
+        return this.single('type', function (n) {
           return (0, _Utils.typeOfNode)((0, _MountedTraversal.getNode)(n));
         });
       }
 
       return type;
+    }()
+
+    /**
+     * Returns the name of the root node of this wrapper.
+     *
+     * In order of precedence => type.displayName -> type.name -> type.
+     *
+     * @returns {String}
+     */
+
+  }, {
+    key: 'name',
+    value: function () {
+      function name() {
+        return this.single('name', function (n) {
+          return (0, _Utils.displayNameOfNode)((0, _MountedTraversal.getNode)(n));
+        });
+      }
+
+      return name;
     }()
 
     /**
@@ -773,9 +991,10 @@ var ReactWrapper = function () {
     value: function () {
       function hasClass(className) {
         if (className && className.indexOf('.') !== -1) {
-          console.log('It looks like you\'re calling `ReactWrapper::hasClass()` with a CSS selector. ' + 'hasClass() expects a class name, not a CSS selector.');
+          // eslint-disable-next-line no-console
+          console.warn('It looks like you\'re calling `ReactWrapper::hasClass()` with a CSS selector. ' + 'hasClass() expects a class name, not a CSS selector.');
         }
-        return this.single(function (n) {
+        return this.single('hasClass', function (n) {
           return (0, _MountedTraversal.instHasClassName)(n, className);
         });
       }
@@ -795,10 +1014,10 @@ var ReactWrapper = function () {
     key: 'forEach',
     value: function () {
       function forEach(fn) {
-        var _this9 = this;
+        var _this10 = this;
 
         this.nodes.forEach(function (n, i) {
-          return fn.call(_this9, _this9.wrap(n), i);
+          return fn.call(_this10, _this10.wrap(n), i);
         });
         return this;
       }
@@ -818,10 +1037,10 @@ var ReactWrapper = function () {
     key: 'map',
     value: function () {
       function map(fn) {
-        var _this10 = this;
+        var _this11 = this;
 
         return this.nodes.map(function (n, i) {
-          return fn.call(_this10, _this10.wrap(n), i);
+          return fn.call(_this11, _this11.wrap(n), i);
         });
       }
 
@@ -841,10 +1060,10 @@ var ReactWrapper = function () {
     key: 'reduce',
     value: function () {
       function reduce(fn, initialValue) {
-        var _this11 = this;
+        var _this12 = this;
 
         return this.nodes.reduce(function (accum, n, i) {
-          return fn.call(_this11, accum, _this11.wrap(n), i);
+          return fn.call(_this12, accum, _this12.wrap(n), i);
         }, initialValue);
       }
 
@@ -864,10 +1083,10 @@ var ReactWrapper = function () {
     key: 'reduceRight',
     value: function () {
       function reduceRight(fn, initialValue) {
-        var _this12 = this;
+        var _this13 = this;
 
         return this.nodes.reduceRight(function (accum, n, i) {
-          return fn.call(_this12, accum, _this12.wrap(n), i);
+          return fn.call(_this13, accum, _this13.wrap(n), i);
         }, initialValue);
       }
 
@@ -885,6 +1104,9 @@ var ReactWrapper = function () {
     key: 'some',
     value: function () {
       function some(selector) {
+        if (this.root === this) {
+          throw new Error('ReactWrapper::some() can not be called on the root');
+        }
         var predicate = (0, _MountedTraversal.buildInstPredicate)(selector);
         return this.nodes.some(predicate);
       }
@@ -903,10 +1125,10 @@ var ReactWrapper = function () {
     key: 'someWhere',
     value: function () {
       function someWhere(predicate) {
-        var _this13 = this;
+        var _this14 = this;
 
         return this.nodes.some(function (n, i) {
-          return predicate.call(_this13, _this13.wrap(n), i);
+          return predicate.call(_this14, _this14.wrap(n), i);
         });
       }
 
@@ -942,10 +1164,10 @@ var ReactWrapper = function () {
     key: 'everyWhere',
     value: function () {
       function everyWhere(predicate) {
-        var _this14 = this;
+        var _this15 = this;
 
         return this.nodes.every(function (n, i) {
-          return predicate.call(_this14, _this14.wrap(n), i);
+          return predicate.call(_this15, _this15.wrap(n), i);
         });
       }
 
@@ -965,14 +1187,15 @@ var ReactWrapper = function () {
     key: 'flatMap',
     value: function () {
       function flatMap(fn) {
-        var _this15 = this;
+        var _this16 = this;
 
         var nodes = this.nodes.map(function (n, i) {
-          return fn.call(_this15, _this15.wrap(n), i);
+          return fn.call(_this16, _this16.wrap(n), i);
         });
         var flattened = (0, _flatten2['default'])(nodes, true);
         var uniques = (0, _uniq2['default'])(flattened);
-        return this.wrap(uniques);
+        var compacted = (0, _compact2['default'])(uniques);
+        return this.wrap(compacted);
       }
 
       return flatMap;
@@ -990,10 +1213,10 @@ var ReactWrapper = function () {
     key: 'findWhere',
     value: function () {
       function findWhere(predicate) {
-        var _this16 = this;
+        var _this17 = this;
 
         return findWhereUnwrapped(this, function (n) {
-          return predicate(_this16.wrap(n));
+          return predicate(_this17.wrap(n));
         });
       }
 
@@ -1094,9 +1317,9 @@ var ReactWrapper = function () {
   }, {
     key: 'single',
     value: function () {
-      function single(fn) {
+      function single(name, fn) {
         if (this.length !== 1) {
-          throw new Error('This method is only meant to be run on single node. ' + String(this.length) + ' found instead.');
+          throw new Error('Method “' + String(name) + '” is only meant to be run on a single node. ' + String(this.length) + ' found instead.');
         }
         return fn.call(this, this.node);
       }
@@ -1139,6 +1362,24 @@ var ReactWrapper = function () {
       }
 
       return debug;
+    }()
+
+    /**
+     * Invokes intercepter and returns itself. intercepter is called with itself.
+     * This is helpful when debugging nodes in method chains.
+     * @param fn
+     * @returns {ReactWrapper}
+     */
+
+  }, {
+    key: 'tap',
+    value: function () {
+      function tap(intercepter) {
+        intercepter(this);
+        return this;
+      }
+
+      return tap;
     }()
 
     /**

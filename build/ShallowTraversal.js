@@ -1,5 +1,3 @@
-'use strict';
-
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
@@ -32,7 +30,9 @@ var _isSubset2 = _interopRequireDefault(_isSubset);
 
 var _Utils = require('./Utils');
 
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { 'default': obj }; }
+
+function _toConsumableArray(arr) { if (Array.isArray(arr)) { for (var i = 0, arr2 = Array(arr.length); i < arr.length; i++) { arr2[i] = arr[i]; } return arr2; } else { return Array.from(arr); } }
 
 function childrenOfNode(node) {
   if (!node) return [];
@@ -48,6 +48,7 @@ function childrenOfNode(node) {
 
 function hasClassName(node, className) {
   var classes = (0, _Utils.propsOfNode)(node).className || '';
+  classes = String(classes).replace(/\s/g, ' ');
   return (' ' + String(classes) + ' ').indexOf(' ' + String(className) + ' ') > -1;
 }
 
@@ -70,15 +71,24 @@ function treeFilter(tree, fn) {
   return results;
 }
 
+function pathFilter(path, fn) {
+  return path.filter(function (tree) {
+    return treeFilter(tree, fn).length !== 0;
+  });
+}
+
 function pathToNode(node, root) {
   var queue = [root];
   var path = [];
 
+  var hasNode = function hasNode(testNode) {
+    return node === testNode;
+  };
+
   while (queue.length) {
     var current = queue.pop();
     var children = childrenOfNode(current);
-
-    if (current === node) return path;
+    if (current === node) return pathFilter(path, hasNode);
 
     path.push(current);
 
@@ -86,7 +96,7 @@ function pathToNode(node, root) {
       // leaf node. if it isn't the node we are looking for, we pop.
       path.pop();
     }
-    queue.push.apply(queue, children);
+    queue.push.apply(queue, _toConsumableArray(children));
   }
 
   return null;
@@ -117,7 +127,7 @@ function nodeHasProperty(node, propKey, stringifiedPropValue) {
     return nodePropValue === propValue;
   }
 
-  return nodeProps.hasOwnProperty(propKey);
+  return Object.prototype.hasOwnProperty.call(nodeProps, propKey);
 }
 
 function nodeMatchesObjectProps(node, props) {
@@ -133,9 +143,6 @@ function buildPredicate(selector) {
       };
 
     case 'string':
-      if (!(0, _Utils.isSimpleSelector)(selector)) {
-        throw (0, _Utils.selectorError)(selector);
-      }
       if (_Utils.isCompoundSelector.test(selector)) {
         return (0, _Utils.AND)((0, _Utils.splitSelector)(selector).map(buildPredicate));
       }
@@ -200,7 +207,7 @@ function getTextFromNode(node) {
   }
 
   if (node.type && typeof node.type === 'function') {
-    return '<' + String(node.type.name || node.type.displayName) + ' />';
+    return '<' + String(node.type.displayName || node.type.name) + ' />';
   }
 
   return childrenOfNode(node).map(getTextFromNode).join('').replace(/\s+/, ' ');
